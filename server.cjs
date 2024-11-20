@@ -3,7 +3,13 @@ const app = express();
 const bodyParser = require("body-parser")
 const morgan = require("morgan");
 const { db, addNewUser } = require("./db.cjs")
-const cors = require("cors")
+const cors = require("cors");
+const session = require("express-session");
+const store = new session.MemoryStore();
+const passport = require("passport");
+const localStrategy = require("passport-local");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 //middleware
 const errorHandler = (err, req, res, next) => {
@@ -13,6 +19,7 @@ const errorHandler = (err, req, res, next) => {
   res.status(err.status).send(err.message)
 }
 
+//app.use-
 
 app.use(bodyParser.json());
 app.use(morgan("tiny"));
@@ -23,28 +30,50 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(session({
+  secret: "conorjames",
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 24,
+    secure: true,
+    sameSite: "none"
+        },
+  resave: false,
+saveUninitialized: false
+ }      
+));
+
+app.use(passport.initialize());
+app.use(passport.session())
+
 
 //routes
 //register route
 app.post("/registerPage", (req, res) => {
   const { userName, password } = req.body
   if(userName && password){
+    
+    
     addNewUser(req.body)
-    res.status(201).send("user added")
+    res.status(201).send("user added, password encrypted")
   }
   else {
     res.status(500).send("error, input username & password")
   }
-  console.log(req.body)
+  
 })
 // check login details
 
-app.post("/loginPage", (req, res) => {
+app.post("/loginPage", async(req, res) => {
   const { userName, password } = req.body
-  const matchedUserName = db.find(user => user.userName === userName);
-  const matchedPassword = db.find(user => user.password === password);
+  
+  const matchedUser  = await db.find((user) => {
+    if(user.userName === userName){
+    return user;
+  }});
+  const matchedPassword = await bcrypt.compare(password, matchedUser.password)
 
-  if(matchedUserName && matchedPassword){
+
+  if(matchedUser && matchedPassword){
     res.status(200).send("You are logged in")
   }
   else {
